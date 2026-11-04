@@ -52,7 +52,7 @@ let S={wa:'923312618024',cod:true,pk:{c:null,t:'Delivery time: to be added'},int
 about:'PURE & CRAFT is a women’s clothing brand based in Karachi.',
 policy:'Shipping charges, delivery times and exchange rules are being finalised. Edit this text from Admin > Store settings.'};
 let P=D.prods.map((g,i)=>({id:'d'+(i+1),name:'Dress 0'+(i+1),imgs:g.map(k=>D.im[k]),price:null,fabric:'',desc:'',col:'Collection One',st:{S:5,M:5,L:5},best:i<3,isNew:i<4}));
-let cart=[],O=[],db=null,adm=false,us=null,G=[];
+let cart=[],O=[],db=null,adm=false,us=null,G=[],dbS='loading',dbE='',RB=null;
 try{cart=JSON.parse(localStorage.getItem('pc')||'[]')}catch(e){}
 const sv=()=>{try{localStorage.setItem('pc',JSON.stringify(cart))}catch(e){}};
 const money=v=>v==null||v===''?'Price Coming Soon':'Rs. '+Number(v).toLocaleString();
@@ -103,13 +103,14 @@ async function place(){const n=cn.value.trim(),ph=cp.value.trim(),a=ca.value.tri
  const msg=`New order, PURE & CRAFT\nName: ${n}\nPhone: ${ph}\nAddress: ${a}, ${o.city}\nShipping: ${cz.value==='pk'?'Pakistan':'International'}\nPayment: ${pm.value==='cod'?'Cash on Delivery':'Confirm on WhatsApp'}\n`+items.map(i=>`- ${i.n}, size ${i.s} x ${i.q}`).join('\n');
  cart=[];sv();$('#cc').textContent=0;$('#m').innerHTML=page(`<h2>Thank you, ${esc(n)}</h2><p>${saved?'Your order has been recorded. ':''}Please send it on WhatsApp so we can confirm availability, price and shipping.</p><a class="btn" target="_blank" href="https://wa.me/${S.wa}?text=${encodeURIComponent(msg)}">Send order on WhatsApp</a>`)}
 /* ADMIN */
-async function sv2(){try{await api('/api/store','PUT',{products:P,settings:S})}catch(e){alert('Could not save: '+e.message)}}
+async function sv2(){if(dbS!=='ok'){alert('Saving is switched off because your store data has not been loaded successfully from the database.');return false}try{await api('/api/store','PUT',{products:P,settings:S});return true}catch(e){alert('Could not save: '+e.message);return false}}
 async function sP(p){if(!find(p.id))P.push(p);await sv2();R()}
 function admin(){if(!adm){$('#m').innerHTML=page(`<h2>Admin Login</h2><label>Password</label><input id="pw" type="password" onkeydown="if(event.key==='Enter')login()"><button class="btn" onclick="login()">Sign in</button><p id="le" style="color:#b33"></p>`);return}
+if(dbS!=='ok'){adminBlocked();return}
  const f=(p,k,l,t='text')=>`<div><label>${l}</label><input data-k="${k}" type="${t}" value="${esc(k.includes('.')?p.st[k.split('.')[1]]:p[k])}"></div>`;
  $('#m').innerHTML=page(`<div class="sh"><h2>Admin</h2><span><button class="btn o" onclick="sessionStorage.removeItem('pct');adm=false;R()">Log out</button> <button class="btn" onclick="newP()">+ Add product</button></span></div><h3>Products</h3>${P.map(p=>`<details id="d-${p.id}"><summary>${esc(p.name)} · ${money(p.price)} · stock ${tot(p)}</summary><div class="mini">${f(p,'name','Name')}${f(p,'price','Price (Rs.)','number')}${f(p,'col','Collection')}${f(p,'fabric','Fabric')}${f(p,'st.S','Stock S','number')}${f(p,'st.M','Stock M','number')}${f(p,'st.L','Stock L','number')}</div><label>Description</label><textarea data-k="desc" rows="3">${esc(p.desc)}</textarea><label><input type="checkbox" data-k="best" style="width:auto" ${p.best?'checked':''}> Best seller</label> <label><input type="checkbox" data-k="isNew" style="width:auto" ${p.isNew?'checked':''}> New arrival</label><div class="th" style="display:flex;gap:8px;margin:10px 0">${p.imgs.map((s,i)=>`<div><img src="${s}" style="width:60px;height:80px;object-fit:cover"><span class="x" onclick="rmI('${p.id}',${i})">×</span></div>`).join('')}</div><input type="file" accept="image/*" onchange="upI('${p.id}',this)"><button class="btn" onclick="saveP('${p.id}')">Save</button> <span class="x" onclick="delP('${p.id}')">Delete product</span></details>`).join('')}
  <br><h3>Store settings</h3><label>WhatsApp number (country code, no +)</label><input id="s-wa" value="${esc(S.wa)}"><label>Top banner text</label><input id="s-ann" value="${esc(S.ann)}"><div class="mini"><div><label>Pakistan shipping (Rs.)</label><input id="s-pc" type="number" value="${S.pk.c??''}"></div><div><label>Pakistan delivery info</label><input id="s-pt" value="${esc(S.pk.t)}"></div><div><label>International shipping (Rs.)</label><input id="s-ic" type="number" value="${S.intl.c??''}"></div><div><label>International delivery info</label><input id="s-it" value="${esc(S.intl.t)}"></div></div><label><input id="s-cod" type="checkbox" style="width:auto" ${S.cod?'checked':''}> Offer Cash on Delivery (Pakistan)</label><label>About text</label><textarea id="s-ab" rows="4">${esc(S.about)}</textarea><label>Shipping &amp; exchange policy text</label><textarea id="s-po" rows="5">${esc(S.policy)}</textarea><button class="btn" onclick="saveS()">Save settings</button>
- <br><br><h3>Orders (${O.length})</h3>${O.map(o=>`<details><summary>${esc(o.name)} · ${esc(o.phone)} · ${esc(o.status)} · ${new Date(o.at).toLocaleDateString()}</summary><p>${esc(o.addr)}, ${esc(o.city)} (${o.zone})<br>Payment: ${o.pay}<br>${o.items.map(i=>`${esc(i.n)} size ${i.s} × ${i.q}`).join('<br>')}<br>Total: ${o.total==null?'To be confirmed':money(o.total)}</p>${o.status==='New'?`<button class="btn o" onclick="conf('${o.id}')">Confirm &amp; deduct stock</button>`:''} <span class="x" onclick="delO('${o.id}')">Delete</span></details>`).join('')||'<p>No orders recorded yet. Orders are also sent to your WhatsApp.</p>'}`)}
+ <br><br>${bkPanel()}<br><br><h3>Orders (${O.length})</h3>${O.map(o=>`<details><summary>${esc(o.name)} · ${esc(o.phone)} · ${esc(o.status)} · ${new Date(o.at).toLocaleDateString()}</summary><p>${esc(o.addr)}, ${esc(o.city)} (${o.zone})<br>Payment: ${o.pay}<br>${o.items.map(i=>`${esc(i.n)} size ${i.s} × ${i.q}`).join('<br>')}<br>Total: ${o.total==null?'To be confirmed':money(o.total)}</p>${o.status==='New'?`<button class="btn o" onclick="conf('${o.id}')">Confirm &amp; deduct stock</button>`:''} <span class="x" onclick="delO('${o.id}')">Delete</span></details>`).join('')||'<p>No orders recorded yet. Orders are also sent to your WhatsApp.</p>'}`)}
 function saveP(id){const p=find(id),d=document.getElementById('d-'+id);d.querySelectorAll('[data-k]').forEach(e=>{const k=e.dataset.k,v=e.type==='checkbox'?e.checked:e.type==='number'?(e.value===''?null:+e.value):e.value;k.includes('.')?p.st[k.split('.')[1]]=v??0:p[k]=v});sP(p)}
 function newP(){const n=P.length+1;sP({id:'p'+Date.now(),name:'Dress '+String(n).padStart(2,'0'),imgs:[D.logo],price:null,fabric:'',desc:'',col:'Collection One',st:{S:0,M:0,L:0},best:false,isNew:true})}
 async function delP(id){if(!confirm('Delete this product?'))return;P=P.filter(p=>p.id!==id);await sv2();R()}
@@ -122,6 +123,80 @@ const tk=()=>{try{return sessionStorage.getItem('pct')}catch(e){return null}};
 const api=async(u,m='GET',b)=>{const r=await fetch(u,{method:m,headers:{'content-type':'application/json',...(tk()?{authorization:'Bearer '+tk()}:{})},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||r.status);return j};
 async function login(){try{const r=await api('/api/login','POST',{password:$('#pw').value});sessionStorage.setItem('pct',r.token);adm=true;O=(await api('/api/orders')).orders;R()}catch(e){$('#le').textContent='Wrong password or server not set up'}}
 async function delO(id){if(!confirm('Delete this order?'))return;await api('/api/orders','DELETE',{id});O=O.filter(o=>o.id!=id);R()}
-(async()=>{try{const d=await api('/api/store');if(d.products&&d.products.length)P=d.products;if(d.settings)S={...S,...d.settings}}catch(e){}
+/* ===== Phase 1: safety net (load guard + backup/restore) ===== */
+async function loadDb(){dbS='loading';dbE='';try{const d=await api('/api/store');if(d.settings)S={...S,...d.settings};if(Array.isArray(d.products)&&d.products.length){P=d.products;dbS='ok'}else dbS='empty'}catch(e){dbS='error';dbE=e.message||String(e)}}
+async function retryDb(){dbS='loading';R();await loadDb();if(tk()){try{O=(await api('/api/orders')).orders}catch(e){}}R()}
+function startFresh(){if(prompt('Only do this for a brand-new store. It lets you edit and save the built-in starter catalogue.\n\nType START FRESH to continue.')==='START FRESH'){dbS='ok';R()}}
+function adminBlocked(){const m=dbS==='loading'?'<p>Loading your store data from the database…</p>':dbS==='error'?`<p class="note" style="border-left-color:#b33"><b>Your store data could not be loaded from the database.</b><br>${esc(dbE)}<br><br>Editing and saving are switched off so your real products, images and settings cannot be overwritten with placeholder data. Nothing has been changed. Check that Upstash Redis is connected in Vercel, then press Retry.</p><br><button class="btn" onclick="retryDb()">Retry loading</button>`:`<p class="note" style="border-left-color:#b33"><b>The database is reachable, but it contains no products.</b><br>Editing and saving are switched off so the built-in placeholder products are not saved by accident. If you expected to see your products, press Retry, or restore a backup file below. If this is a brand-new store, you can start with the starter catalogue.</p><br><button class="btn" onclick="retryDb()">Retry loading</button> <button class="btn o" onclick="startFresh()">Start with starter catalogue</button>`;
+$('#m').innerHTML=page(`<div class="sh"><h2>Admin</h2><span><button class="btn o" onclick="sessionStorage.removeItem('pct');adm=false;R()">Log out</button></span></div>${m}<br><br>${bkPanel()}`)}
+function bkPanel(){return`<h3>Backup &amp; Restore</h3><p class="note">Download a full backup (products, settings, orders and uploaded images) before you change anything. Restoring never deletes anything: images and orders already in the database are kept untouched, and your current products and settings are only replaced if you tick the box, after a safety copy is saved.</p><br><button class="btn" id="bk-ex" onclick="exportBackup()">Download full backup</button><p id="bk-st" style="font-size:14px;color:var(--mu)"></p><label>Restore from a backup file</label><input type="file" id="bk-file" accept=".json,application/json" onchange="bkLoad(this)"><div id="bk-sum"></div>`}
+function bkSt(t){const e=$('#bk-st');if(e)e.textContent=t}
+async function exportBackup(){const btn=$('#bk-ex');if(btn)btn.disabled=true;
+try{bkSt('Reading database…');
+const m=await api('/api/backup?part=manifest');
+const od={};let cur='0',bad=0;
+do{const r=await api('/api/backup?part=orders&cursor='+encodeURIComponent(cur));bad+=r.bad||0;r.orders.forEach(o=>{od[o.id]=o});cur=String(r.cursor);bkSt('Reading orders… '+Object.keys(od).length)}while(cur!=='0');
+if(Object.keys(od).length+bad<m.orderCount)throw new Error('Orders were not read completely.');
+const ids=m.imageIds.slice(),images={};let n=0;
+const w=async()=>{while(ids.length){const id=ids.shift(),r=await api('/api/backup?part=img&id='+encodeURIComponent(id));images[r.id]=r.data;bkSt('Reading images… '+(++n)+' of '+m.imageIds.length)}};
+await Promise.all([w(),w(),w()]);
+if(Object.keys(images).length!==m.imageIds.length)throw new Error('Some images could not be read.');
+const other=[];for(const k of m.other)other.push(await api('/api/backup?part=other&key='+encodeURIComponent(k.key)));
+const prods=(m.store&&m.store.products)||[],orders=Object.values(od);
+const missing=[...new Set(prods.flatMap(p=>p.imgs||[]).map(u=>(/^\/api\/img\?id=([a-z0-9]+)$/.exec(u)||[])[1]).filter(Boolean))].filter(i=>!images[i]);
+const bk={format:'pure-craft-backup',version:1,createdAt:new Date().toISOString(),counts:{products:prods.length,orders:orders.length,images:Object.keys(images).length},store:m.store,storeRaw:m.storeRaw,orders,images,other,safetyCopies:m.safety};
+const blob=new Blob([JSON.stringify(bk)],{type:'application/json'}),a=document.createElement('a');
+a.href=URL.createObjectURL(blob);a.download='pure-craft-backup-'+new Date().toISOString().slice(0,16).replace(/[-:T]/g,'')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+bkSt('Backup downloaded: '+prods.length+' products, '+orders.length+' orders, '+bk.counts.images+' images ('+(blob.size/1048576).toFixed(1)+' MB).'+(missing.length?' Warning: '+missing.length+' image(s) used by products were not found in the database.':'')+(bad?' Warning: '+bad+' order(s) could not be read.':''))
+}catch(e){bkSt('Backup failed: '+(e.message||e)+' No file was created and nothing was changed.')}
+if(btn)btn.disabled=false}
+function bkVal(b){const e=[],ID=/^[a-z0-9]{1,40}$/,IM=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/]+={0,2}$/,isO=v=>v&&typeof v==='object'&&!Array.isArray(v);
+if(!isO(b)||b.format!=='pure-craft-backup')return['This is not a Pure & Craft backup file.'];
+if(b.version!==1)return['Unsupported backup version.'];
+if(!Array.isArray(b.orders)||!isO(b.images))return['The backup is missing its orders or images section.'];
+const c=b.counts||{};
+if(c.orders!==b.orders.length)e.push('Order count does not match (the file may be incomplete).');
+if(c.images!==Object.keys(b.images).length)e.push('Image count does not match (the file may be incomplete).');
+if(b.store!=null){if(!isO(b.store)||!Array.isArray(b.store.products)||!b.store.products.length)e.push('The catalogue in this backup has no products.');
+else{if(c.products!==b.store.products.length)e.push('Product count does not match (the file may be incomplete).');
+const s=new Set();for(const p of b.store.products){
+if(!isO(p)||(typeof p.id!=='string'&&typeof p.id!=='number')||String(p.id)===''||typeof p.name!=='string'||!Array.isArray(p.imgs)||!p.imgs.every(u=>typeof u==='string')||!isO(p.st)){e.push('A product has missing or invalid data.');break}
+if(s.has(String(p.id))){e.push('Duplicate product id '+p.id+'.');break}s.add(String(p.id));
+if(p.price!=null&&p.price!==''&&!Number.isFinite(+p.price)){e.push('Product '+p.id+' has an invalid price.');break}
+if(Object.values(p.st).some(v=>!Number.isFinite(+v)||+v<0)){e.push('Product '+p.id+' has invalid stock.');break}}
+if(b.store.settings!=null&&!isO(b.store.settings))e.push('Settings are invalid.');
+if(JSON.stringify({products:b.store.products,settings:b.store.settings}).length>900000)e.push('The catalogue is too large.')}}
+const os=new Set();for(const o of b.orders){if(!isO(o)||!ID.test(String(o.id))||typeof o.name!=='string'||typeof o.phone!=='string'||typeof o.addr!=='string'||!Array.isArray(o.items)||typeof(o.status||'')!=='string'){e.push('An order has missing or invalid data.');break}if(os.has(o.id)){e.push('Duplicate order '+o.id+'.');break}os.add(o.id)}
+for(const[k,v]of Object.entries(b.images)){if(!ID.test(k)||typeof v!=='string'||v.length>900000||!IM.test(v)){e.push('Image "'+k+'" is invalid or too large.');break}}
+return e}
+async function bkLoad(el){const f=el.files[0],box=$('#bk-sum');RB=null;if(!f){box.innerHTML='';return}
+box.innerHTML='<p>Checking the file…</p>';
+try{let b;try{b=JSON.parse(await f.text())}catch(e){throw new Error('This file is not valid JSON, so it cannot be restored.')}
+const er=bkVal(b);
+if(er.length){box.innerHTML=`<p class="note" style="border-left-color:#b33"><b>This file cannot be restored. Nothing was changed.</b><br>${er.slice(0,6).map(esc).join('<br>')}</p>`;return}
+const iids=Object.keys(b.images),oids=b.orders.map(o=>o.id);
+const c=await api('/api/backup','POST',{op:'check',imageIds:iids,orderIds:oids});
+const ie=new Set(c.imagesExisting),oe=new Set(c.ordersExisting);
+RB={b,newImgs:iids.filter(i=>!ie.has(i)),newOrders:b.orders.filter(o=>!oe.has(o.id))};
+const np=b.store?b.store.products.length:0;
+box.innerHTML=`<div class="note"><b>${esc(f.name)}</b>${b.createdAt?' · created '+esc(new Date(b.createdAt).toLocaleString()):''}<br>Images: ${iids.length} in the backup. ${RB.newImgs.length} missing from the database will be added; ${iids.length-RB.newImgs.length} already exist and stay untouched.<br>Orders: ${oids.length} in the backup. ${RB.newOrders.length} will be added; ${oids.length-RB.newOrders.length} already exist and stay untouched.<br>Products &amp; settings: the backup has ${np} products; the database currently has ${c.store.products<0?'unreadable data':c.store.products}.</div>${b.store?`<label style="display:block;margin-top:12px"><input type="checkbox" id="bk-rep" style="width:auto"${c.store.exists?'':' checked'}> Replace the current products &amp; settings with the ones in this backup (the current ones are copied to a safety key first)</label>`:'<p>This backup has no products or settings to restore.</p>'}<label>Type RESTORE to confirm</label><input id="bk-cf" autocomplete="off"><button class="btn" id="bk-go" onclick="bkGo()">Restore now</button><p id="bk-rs" style="font-size:14px;color:var(--mu)"></p>`
+}catch(e){box.innerHTML=`<p class="note" style="border-left-color:#b33"><b>Could not check this backup. Nothing was changed.</b><br>${esc(e.message||e)}</p>`}}
+async function bkGo(){if(!RB)return;const rs=$('#bk-rs'),btn=$('#bk-go');
+if($('#bk-cf').value.trim()!=='RESTORE'){alert('Please type RESTORE in the box to confirm.');return}
+const rep=!!($('#bk-rep')&&$('#bk-rep').checked)&&!!RB.b.store;
+if(!confirm('Restore now?\n\n• Add '+RB.newImgs.length+' missing image(s)\n• Add '+RB.newOrders.length+' missing order(s)\n• '+(rep?'REPLACE current products & settings (a safety copy is saved first)':'Keep current products & settings unchanged')+'\n\nNothing will be deleted.'))return;
+btn.disabled=true;const log=[];
+try{let batch=[],sz=0,added=0,skipped=0;
+const flush=async()=>{if(!batch.length)return;const r=await api('/api/backup','POST',{op:'images',items:batch});added+=r.added;skipped+=r.skipped;batch=[];sz=0;rs.textContent='Restoring images… '+(added+skipped)+' of '+RB.newImgs.length};
+for(const id of RB.newImgs){const d=RB.b.images[id];if(batch.length>=12||sz+d.length>2500000)await flush();batch.push({id,data:d});sz+=d.length}await flush();
+log.push('Images: '+added+' added'+(skipped?', '+skipped+' already existed':''));
+let oa=0,os=0;const no=RB.newOrders;
+for(let i=0;i<no.length;i+=100){const r=await api('/api/backup','POST',{op:'orders',orders:no.slice(i,i+100)});oa+=r.added;os+=r.skipped;rs.textContent='Restoring orders… '+Math.min(i+100,no.length)+' of '+no.length}
+log.push('Orders: '+oa+' added'+(os?', '+os+' already existed':''));
+if(rep){rs.textContent='Replacing products & settings…';const r=await api('/api/backup','POST',{op:'store',products:RB.b.store.products,settings:RB.b.store.settings});log.push('Products & settings restored ('+RB.b.store.products.length+' products). Safety copy of the previous version: '+(r.safetyKey||'none, the database had no catalogue'));if(r.missingImages&&r.missingImages.length)log.push('Warning: '+r.missingImages.length+' image(s) used by products are not in the database.')}
+else log.push('Products & settings: unchanged');
+RB=null;await loadDb();if(tk()){try{O=(await api('/api/orders')).orders}catch(e){}}R();alert('Restore finished.\n\n'+log.join('\n'))
+}catch(e){rs.textContent='Restore stopped: '+(e.message||e)+' Nothing was deleted, so you can safely run the restore again.'+(log.length?' Completed so far: '+log.join('; ')+'.':'');btn.disabled=false}}
+(async()=>{await loadDb();
 if(tk()){try{O=(await api('/api/orders')).orders;adm=true}catch(e){sessionStorage.removeItem('pct')}}R()})();
 </script></body></html>
